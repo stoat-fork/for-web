@@ -4,6 +4,7 @@ import {
   Switch,
   createMemo,
   createSignal,
+  onMount,
   useContext,
 } from "solid-js";
 
@@ -13,14 +14,15 @@ import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
+import { useDevice } from "@revolt/common";
 import { UnicodeEmoji } from "@revolt/markdown/emoji";
 import { UNICODE_EMOJI_PACK_PUA } from "@revolt/markdown/emoji/UnicodeEmoji";
 import { useState } from "@revolt/state";
 import { Avatar, Ripple, TextField } from "@revolt/ui/components/design";
 import { Row } from "@revolt/ui/components/layout";
+import { createResizeObserver } from "@solid-primitives/resize-observer";
 
 import emojiMapping from "../../../../../emojiMapping.json";
-
 import {
   CompositionMediaPickerContext,
   compositionContent,
@@ -63,18 +65,27 @@ type Item =
       text: string;
     };
 
-const COLUMNS = 9;
-
 export function EmojiPicker() {
   const client = useClient();
   const { ordering } = useState();
+  const { isMobile } = useDevice();
 
   const [filter, setFilter] = createSignal("");
+  const [colCount, setColCount] = createSignal(0);
 
   let serverScrollTargetElement!: HTMLDivElement;
   let emojiScrollTargetElement!: HTMLDivElement;
 
+  onMount(() =>
+    createResizeObserver(emojiScrollTargetElement, ({ width }) =>
+      setColCount(Math.floor(width / 40)),
+    ),
+  );
+
   const items = createMemo(() => {
+    const cols = colCount();
+    if (!cols) return [];
+
     const filterText = filter().toLowerCase();
 
     if (filterText) {
@@ -104,7 +115,7 @@ export function EmojiPicker() {
         server,
       });
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
 
@@ -112,7 +123,7 @@ export function EmojiPicker() {
         items.push({ t: 2, emoji });
       }
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
     }
@@ -122,7 +133,7 @@ export function EmojiPicker() {
       title: "Default",
     });
 
-    while (items.length % COLUMNS) {
+    while (items.length % cols) {
       items.push({ t: 1 });
     }
 
@@ -140,15 +151,10 @@ export function EmojiPicker() {
   return (
     <Stack>
       <TextField
-        autoFocus
+        autoFocus={!isMobile}
         variant="outlined"
         placeholder="Search for emojis..."
         value={filter()}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }}
         onInput={(e) => setFilter(e.currentTarget.value)}
       />
       <Row gap={"none"} class={compositionContent()}>
@@ -176,7 +182,7 @@ export function EmojiPicker() {
                   );
                   if (idx !== -1 && emojiScrollTargetElement) {
                     emojiScrollTargetElement.scrollTop =
-                      Math.floor(idx / COLUMNS) * 40;
+                      Math.floor(idx / colCount()) * 40;
                   }
                 }}
               />
@@ -193,7 +199,7 @@ export function EmojiPicker() {
             items={items()}
             scrollTarget={emojiScrollTargetElement}
             itemSize={{ height: 40, width: 40 }}
-            crossAxisCount={() => COLUMNS}
+            crossAxisCount={colCount}
           >
             {EmojiItem}
           </VirtualContainer>
@@ -240,12 +246,10 @@ const ServerItem = (props: {
     style={props.style as never}
     tabIndex={props.tabIndex}
     role="listitem"
-    onMouseDown={(e) => {
-      e.preventDefault();
+    onClick={(e) => {
       e.stopPropagation();
-      e.stopImmediatePropagation();
+      props.onClick(e);
     }}
-    onClick={props.onClick}
   >
     <Avatar
       size={32}
