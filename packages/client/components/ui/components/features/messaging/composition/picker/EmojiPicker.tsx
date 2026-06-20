@@ -2,6 +2,7 @@ import {
   Match,
   Show,
   Switch,
+  createEffect,
   createMemo,
   createSignal,
   useContext,
@@ -64,6 +65,8 @@ type Item =
     };
 
 const COLUMNS = 10;
+
+const [hoveredItem, setHoveredItem] = createSignal<Item | null>(null);
 
 export function EmojiPicker() {
   const client = useClient();
@@ -137,6 +140,12 @@ export function EmojiPicker() {
     return items;
   });
 
+  createEffect(() => {
+    if (hoveredItem() !== null) return;
+    const first = items().find((item) => item.t === 2 || item.t === 4) ?? null;
+    setHoveredItem(first);
+  });
+
   return (
     <Stack>
       <TextField
@@ -186,6 +195,76 @@ export function EmojiPicker() {
           </VirtualContainer>
         </div>
       </Row>
+      <EmojiPreviewBar>
+        <Show when={hoveredItem()}>
+          {(item) => (
+            <>
+              <Row align gap="md" style={{ flex: 1, "min-width": 0 }}>
+                <PreviewEmoji>
+                  <Switch>
+                    <Match when={item().t === 2}>
+                      <img src={(item() as Item & { t: 2 }).emoji.url} />
+                    </Match>
+                    <Match when={item().t === 4}>
+                      <UnicodeEmoji
+                        emoji={(item() as Item & { t: 4 }).text}
+                        pack={state.settings.getValue(
+                          "appearance:unicode_emoji",
+                        )}
+                      />
+                    </Match>
+                  </Switch>
+                </PreviewEmoji>
+                <div>
+                  <PreviewName>
+                    <Switch>
+                      <Match when={item().t === 2}>
+                        :{(item() as Item & { t: 2 }).emoji.name}:
+                      </Match>
+                      <Match when={item().t === 4}>
+                        :{(item() as Item & { t: 4 }).name}:
+                      </Match>
+                    </Switch>
+                  </PreviewName>
+                  <Show when={item().t === 2}>
+                    <PreviewFrom>
+                      from{" "}
+                      <strong>
+                        {(item() as Item & { t: 2 }).emoji.parent.type ===
+                        "Server"
+                          ? (client().servers.get(
+                              (item() as Item & { t: 2 }).emoji.parent.id,
+                            )?.name ?? "Unknown Server")
+                          : "Unknown Server"}
+                      </strong>
+                    </PreviewFrom>
+                  </Show>
+                </div>
+              </Row>
+              <Show
+                when={
+                  item().t === 2 &&
+                  (item() as Item & { t: 2 }).emoji.parent.type === "Server"
+                }
+              >
+                <Avatar
+                  size={32}
+                  src={
+                    client().servers.get(
+                      (item() as Item & { t: 2 }).emoji.parent.id,
+                    )?.animatedIconURL
+                  }
+                  fallback={
+                    client().servers.get(
+                      (item() as Item & { t: 2 }).emoji.parent.id,
+                    )?.name ?? ""
+                  }
+                />
+              </Show>
+            </>
+          )}
+        </Show>
+      </EmojiPreviewBar>
     </Stack>
   );
 }
@@ -234,6 +313,58 @@ const ServerOption = styled("div", {
   },
 });
 
+const EmojiPreviewBar = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "var(--gap-sm) var(--gap-md)",
+    borderTop: "1px solid var(--colour-component-bg-3, rgba(255,255,255,0.06))",
+    minHeight: "52px",
+    flexShrink: 0,
+    gap: "var(--gap-md)",
+  },
+});
+
+const PreviewEmoji = styled("div", {
+  base: {
+    width: "32px",
+    height: "32px",
+    flexShrink: 0,
+    "--emoji-size": "32px",
+
+    "& img": {
+      width: "100%",
+      height: "100%",
+      objectFit: "contain",
+    },
+  },
+});
+
+const PreviewName = styled("span", {
+  base: {
+    display: "block",
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    color: "var(--colour-foreground)",
+    lineHeight: 1.2,
+  },
+});
+
+const PreviewFrom = styled("span", {
+  base: {
+    display: "block",
+    fontSize: "0.75rem",
+    color: "var(--colour-foreground-muted, rgba(255,255,255,0.4))",
+    marginTop: "1px",
+
+    "& strong": {
+      color: "var(--colour-foreground-secondary, rgba(255,255,255,0.65))",
+      fontWeight: 500,
+    },
+  },
+});
+
 const EmojiItem = (props: { style: unknown; tabIndex: number; item: Item }) => {
   const state = useState();
   const { onTextReplacement } = useContext(CompositionMediaPickerContext);
@@ -254,6 +385,10 @@ const EmojiItem = (props: { style: unknown; tabIndex: number; item: Item }) => {
             `${UNICODE_EMOJI_PACK_PUA[state.settings.getValue("appearance:unicode_emoji")!] ?? ""}${props.item.text}`,
           );
         }
+      }}
+      onMouseEnter={() => {
+        if (props.item.t === 2 || props.item.t === 4)
+          setHoveredItem(props.item);
       }}
     >
       <Switch>
