@@ -111,10 +111,8 @@ export function UserProfileEditor(props: Props) {
 
     if (editGroup.controls.pronouns.isDirty) {
       if (!editGroup.controls.pronouns.value) {
-        //@ts-expect-error API typings not updated
         changes.remove?.push("Pronouns");
       } else {
-        //@ts-expect-error API typings not updated
         changes.pronouns = editGroup.controls.pronouns.value.trim();
       }
     }

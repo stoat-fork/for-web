@@ -59,10 +59,8 @@ export function ServerIdentityModal(
 
       if (group.controls.pronouns.isDirty) {
         if (!group.controls.pronouns.value) {
-          //@ts-expect-error API typings not updated
           changes.remove?.push("Pronouns");
         } else {
-          //@ts-expect-error API typings not updated
           changes.pronouns = group.controls.pronouns.value;
         }
       }
