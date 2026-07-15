@@ -1,0 +1,50 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "upstream-sync-bot"
+          git config user.email "bot@noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "https://github.com/stoatchat/${{ github.event.repository.name }}.git" 2>/dev/null || true
+          git fetch upstream --no-tags
+
+      - name: Reset upstream-sync branch to upstream/main
+        run: |
+          git checkout -B upstream-sync upstream/main
+          git push origin upstream-sync --force
+
+      - name: Open PR if changes exist
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          branch: upstream-sync
+          base: main
+          title: "chore: sync upstream stoatchat/${{ github.event.repository.name }}"
+          body: |
+            ## Automated Weekly Upstream Sync
+
+            This PR was automatically opened by the upstream-sync workflow.
+            **Source:** `stoatchat/${{ github.event.repository.name }}` → `upstream/main`
+
+            Review carefully before merging — check for conflicts with our custom modifications.
+          labels: upstream-sync,automated
+          draft: false
