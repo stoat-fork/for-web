@@ -2,7 +2,7 @@ name: Sync with Upstream
 
 on:
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '0 4 * * *'   # Daily at 04:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -11,8 +11,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout our fork (full history)
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
@@ -22,29 +24,79 @@ jobs:
           git config user.name "upstream-sync-bot"
           git config user.email "bot@noreply.github.com"
 
-      - name: Fetch upstream
+      - name: Add upstream remote and fetch
         run: |
-          git remote add upstream "https://github.com/stoatchat/${{ github.event.repository.name }}.git" 2>/dev/null || true
+          REPO="${{ github.event.repository.name }}"
+          git remote add upstream "https://github.com/stoatchat/${REPO}.git" 2>/dev/null || true
           git fetch upstream --no-tags
+          echo "Upstream fetched."
 
-      - name: Reset upstream-sync branch to upstream/main
+      - name: Check if upstream has new commits
+        id: check
         run: |
-          git checkout -B upstream-sync upstream/main
-          git push origin upstream-sync --force
+          NEW=$(git log HEAD..upstream/main --oneline | wc -l | tr -d ' ')
+          echo "new_commits=$NEW" >> $GITHUB_OUTPUT
+          echo "Upstream has $NEW new commit(s) since our last sync."
+          if [ "$NEW" = "0" ]; then
+            echo "Already up to date — nothing to do."
+          fi
 
-      - name: Open PR if changes exist
+      - name: Attempt auto-merge of upstream changes
+        id: merge
+        if: steps.check.outputs.new_commits != '0'
+        run: |
+          # Try a real merge — this preserves YOUR commits on main
+          # and only brings in upstream changes that don't conflict
+          git merge upstream/main --no-edit --no-ff \
+            -m "chore: merge upstream updates (auto-sync)" 2>&1
+          echo "result=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Push auto-merged changes
+        if: |
+          steps.check.outputs.new_commits != '0' &&
+          steps.merge.outputs.result == 'success'
+        run: |
+          git push origin main
+          echo "✓ Upstream changes merged and pushed automatically."
+          echo "  No conflicts detected — your custom changes are intact."
+
+      - name: Handle merge conflict — open PR instead
+        if: |
+          steps.check.outputs.new_commits != '0' &&
+          steps.merge.outputs.result != 'success'
+        run: |
+          # Abort failed merge
+          git merge --abort 2>/dev/null || true
+
+          # Create a conflict branch from upstream so you can review
+          git checkout -B upstream-sync-conflict upstream/main
+          git push origin upstream-sync-conflict --force
+
+          echo "⚠ Merge conflict detected — opening PR for manual review."
+
+      - name: Create conflict PR
+        if: |
+          steps.check.outputs.new_commits != '0' &&
+          steps.merge.outputs.result != 'success'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GH_TOKEN }}
-          branch: upstream-sync
+          branch: upstream-sync-conflict
           base: main
-          title: "chore: sync upstream stoatchat/${{ github.event.repository.name }}"
+          title: "⚠️ Upstream sync conflict — manual review needed"
           body: |
-            ## Automated Weekly Upstream Sync
+            ## Upstream Sync — Conflict Detected
 
-            This PR was automatically opened by the upstream-sync workflow.
-            **Source:** `stoatchat/${{ github.event.repository.name }}` → `upstream/main`
+            The auto-sync tried to merge `stoatchat/${{ github.event.repository.name }}`
+            upstream changes into `main` but found **merge conflicts** with your custom modifications.
 
-            Review carefully before merging — check for conflicts with our custom modifications.
-          labels: upstream-sync,automated
+            **Action required:** Review this PR, resolve any conflicts, then merge.
+
+            Once merged, future upstream syncs will continue automatically.
+
+            ---
+            > This PR was opened by the daily upstream-sync workflow because automatic merge failed.
+            > If no conflicts existed, changes would have been merged silently without a PR.
+          labels: upstream-sync,conflict,needs-review
           draft: false
