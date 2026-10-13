@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-09-29 18:29-0500\n"
-"PO-Revision-Date: 2026-09-29 15:31+0000\n"
+"PO-Revision-Date: 2026-10-05 19:18+0000\n"
 "Last-Translator: Alexis Launay <yorunohikage@gmail.com>\n"
 "Language-Team: Breton <https://translate.stoat.chat/projects/revolt/revolt-for-web/br/>\n"
 "Language: br\n"
@@ -989,9 +989,8 @@ msgstr "Eilañ an ID ar c'hanol"
 
 #: components/app/menus/MessageContextMenu.tsx
 msgid "Copy file"
-msgstr ""
+msgstr "Eilañ ar restr"
 
-#: components/app/menus/MessageContextMenu.tsx
 #~ msgid "Copy file link"
 #~ msgstr ""
 
@@ -1018,7 +1017,7 @@ msgstr ""
 
 #: components/app/menus/MessageContextMenu.tsx
 msgid "Copy link to file"
-msgstr ""
+msgstr "Eilañ al liamm war-zu ar restr"
 
 #: components/app/menus/MessageContextMenu.tsx
 msgid "Copy message ID"
